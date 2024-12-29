@@ -1,7 +1,7 @@
 import os
 import structlog
 from datetime import datetime, timedelta
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, TypedDict
 import uuid
 import asyncio
 
@@ -12,6 +12,12 @@ from .subtitle import SubtitleFetcher
 from .session import SearchSession
 
 logger = structlog.get_logger()
+
+
+class SearchResult(TypedDict):
+    """搜索结果"""
+    clips: List[Dict]  # 视频片段列表
+    answer: str        # LLM回答
 
 
 class YouTubeService:
@@ -100,7 +106,7 @@ class YouTubeService:
             for sub in all_subtitles:
                 transcript_text += f"[{sub['video_title']}] {sub['text']}\n"
 
-            overview = await self.openai_client.generate_answer(
+            overview = await self.openai_client.generate_video_sumary(
                 transcript=transcript_text,
                 max_tokens=300
             )
@@ -135,8 +141,8 @@ class YouTubeService:
                          exc_info=True)
             raise
 
-    async def analyze_session_content(self, session_id: str, query: str) -> List[Dict]:
-        """基于会话分析用户问题，找到相关视频片段
+    async def _find_relevant_clips_from_session(self, session_id: str, query: str) -> List[Dict]:
+        """在会话中查找与问题相关的视频片段
 
         Args:
             session_id: 会话ID
@@ -191,7 +197,7 @@ class YouTubeService:
             return results
 
         except Exception as e:
-            logger.error("analyze_session_content_failed",
+            logger.error("find_relevant_clips_failed",
                          session_id=session_id,
                          query=query,
                          error=str(e),
@@ -212,3 +218,115 @@ class YouTubeService:
             return minutes * 60 + seconds
         except Exception:
             return 0
+
+    async def _answer_question_from_clips(
+        self,
+        session: SearchSession,
+        clips: List[Dict],
+        query: str
+    ) -> str:
+        """基于相关视频片段回答用户问题，如果没有相关片段则使用 LLM 知识回答
+
+        Args:
+            session: 会话实例
+            clips: 相关视频片段列表
+            query: 用户问题
+
+        Returns:
+            str: 生成的回答
+        """
+        # 收集相关视频的字幕
+        relevant_subtitles = []
+
+        if clips:
+            for clip in clips:
+                video_id = clip["video_id"]
+                video_title = clip["video_title"]
+                timestamp = clip["timestamp"]
+
+                # 获取视频字幕
+                subtitles = session.subtitles.get(video_id, [])
+                if not subtitles:
+                    continue
+
+                # 将时间戳转换为秒数
+                clip_time = self._timestamp_to_seconds(timestamp)
+
+                # 获取片段前后的上下文（前后1分钟）
+                context_subtitles = []
+                for sub in subtitles:
+                    sub_time = int(sub.get("start", 0))
+                    if abs(sub_time - clip_time) <= 60:  # 获取片段前后1分钟的内容
+                        context_subtitles.append({
+                            "video_title": video_title,
+                            "text": sub.get("text", ""),
+                            "start": sub.get("start", 0)
+                        })
+
+                # 按时间排序
+                context_subtitles.sort(key=lambda x: x["start"])
+                relevant_subtitles.extend(context_subtitles)
+
+        # 构建上下文
+        context = ""
+        if relevant_subtitles:
+            for sub in relevant_subtitles:
+                context += f"[{sub['video_title']}] {sub['text']}\n"
+
+            # 生成基于视频内容的回答
+            answer = await self.openai_client.answer_question(
+                query=query,
+                transcript=context,
+                max_tokens=800
+            )
+            if answer:
+                return answer
+
+        # 如果没有相关片段或无法基于视频内容回答，使用 LLM 知识回答
+        answer = await self.openai_client.answer_question(
+            query=query,
+            transcript="",  # 空字幕表示使用 LLM 知识回答
+            max_tokens=800
+        )
+        return answer if answer else "抱歉，我无法回答这个问题。"
+
+    async def search_session_content(self, session_id: str, query: str) -> SearchResult:
+        """搜索会话内容并生成回答
+
+        Args:
+            session_id: 会话ID
+            query: 用户问题
+
+        Returns:
+            SearchResult: 包含视频片段和LLM回答的搜索结果
+        """
+        try:
+            # 获取会话
+            session = self.sessions.get(session_id)
+            if not session:
+                raise ValueError(f"Session {session_id} not found")
+
+            if session.is_expired():
+                raise ValueError(f"Session {session_id} has expired")
+
+            # 更新最后访问时间
+            session.update_last_accessed()
+
+            # 1. 先找到相关视频片段
+            clips = await self._find_relevant_clips_from_session(session_id, query)
+
+            # 2. 基于相关片段生成回答
+            answer = await self._answer_question_from_clips(session, clips, query)
+
+            return SearchResult(
+                clips=clips,
+                answer=answer
+            )
+
+        except Exception as e:
+            logger.error("search_session_content_failed",
+                         session_id=session_id,
+                         query=query,
+                         error=str(e),
+                         exc_info=True)
+            raise

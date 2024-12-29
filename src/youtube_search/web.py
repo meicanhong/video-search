@@ -64,23 +64,23 @@ async def health_check() -> dict:
 
 
 @app.post("/sessions/{session_id}/analyze", response_model=SessionAnalysisResponse)
-async def analyze_session_content(request: SessionAnalysisRequest) -> SessionAnalysisResponse:
-    """分析会话内容，找到与问题相关的视频片段"""
+async def search_session_content(request: SessionAnalysisRequest) -> SessionAnalysisResponse:
+    """分析会话内容，找到与问题相关的视频片段并生成回答"""
     try:
         logger.info("analyze_request_received",
                     session_id=request.session_id,
                     query=request.query)
 
-        results = await youtube_service.analyze_session_content(
+        result = await youtube_service.search_session_content(
             session_id=request.session_id,
             query=request.query
         )
 
         # 转换为响应模型
-        clips = [VideoClip(**result) for result in results]
+        clips = [VideoClip(**clip) for clip in result["clips"]]
         response = SessionAnalysisResponse(
             clips=clips,
-            total_clips=len(clips)
+            answer=result["answer"]
         )
 
         logger.info("analyze_completed",

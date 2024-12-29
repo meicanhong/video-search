@@ -148,7 +148,7 @@ class OpenAIClient:
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=4, max=10)
     )
-    async def generate_answer(
+    async def generate_video_sumary(
         self,
         transcript: str,
         max_tokens: int = 300
@@ -192,3 +192,71 @@ class OpenAIClient:
         except Exception as e:
             logger.error(f"OpenAI API error: {str(e)}")
             raise
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=4, max=10)
+    )
+    async def answer_question(
+        self,
+        query: str,
+        transcript: str,
+        max_tokens: int = 800
+    ) -> str:
+        """基于字幕内容和 LLM 知识回答用户问题
+
+        Args:
+            query: 用户问题
+            transcript: 字幕文本内容
+            max_tokens: 最大返回token数
+
+        Returns:
+            str: 问题的回答
+        """
+        system_prompt = """
+        你是一个专业的视频内容分析助手。你的任务是：
+        1. 首先基于字幕内容回答用户问题
+        2. 然后结合你的知识，对回答进行补充和扩展
+        3. 如果字幕内容不足以回答问题，可以使用你的知识来辅助回答
+        4. 如果问题涉及多个视频的内容，要综合分析并给出完整答案
+        
+        回答要求：
+        1. 明确区分哪些信息来自视频，哪些是补充知识
+        2. 回答分两部分：
+           - 第一部分：基于视频内容的回答
+           - 第二部分：知识补充和扩展（如果需要）
+        3. 回答要简洁、准确、有逻辑性
+        4. 适当引用视频内容，增加可信度
+        5. 补充知识要确保准确性和相关性
+        
+        注意事项：
+        - 如果视频内容足够回答问题，补充知识部分可以简短或省略
+        - 如果视频内容完全不相关，要诚实说明，再用知识回答
+        - 确保两部分内容有逻辑联系，不要简单罗列
+        """
+
+        user_prompt = f"""
+        用户问题: {query}
+
+        字幕内容:
+        {transcript}
+        
+        请先基于字幕内容回答问题，再结合你的知识进行补充和扩展。
+        """
+
+        try:
+            response = await self.client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                max_tokens=max_tokens,
+                temperature=0.7
+            )
+
+            return response.choices[0].message.content.strip()
+
+        except Exception as e:
+            logger.error(f"OpenAI API error: {str(e)}")
+            return "抱歉，在处理您的问题时遇到了错误。"

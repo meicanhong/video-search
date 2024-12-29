@@ -57,4 +57,4 @@ class VideoClip(BaseModel):
 class SessionAnalysisResponse(BaseModel):
     """会话内容分析响应"""
     clips: List[VideoClip] = Field(..., description="相关视频片段列表")
-    total_clips: int = Field(..., description="找到的相关片段数量")
+    answer: str = Field(..., description="基于视频内容和LLM知识的回答")
