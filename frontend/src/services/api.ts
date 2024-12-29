@@ -1,13 +1,18 @@
+/// <reference types="vite/client" />
+
 import axios from 'axios';
 import type {
     SearchRequest,
     SearchResponse,
-    SessionAnalysisRequest,
     SessionAnalysisResponse,
 } from '@/types/api';
 
+
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8001';
+
+
 const api = axios.create({
-    baseURL: '/api',
+    baseURL: BACKEND_URL,
     timeout: 30000,
 });
 
