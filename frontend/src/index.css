@@ -1,0 +1,31 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 自定义样式 */
+@layer components {
+  .card-hover {
+    @apply transition-all duration-300 hover:shadow-lg hover:-translate-y-1;
+  }
+  
+  .btn-primary {
+    @apply bg-primary-500 text-white px-4 py-2 rounded-lg hover:bg-primary-600 transition-colors;
+  }
+  
+  .input-primary {
+    @apply border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none;
+  }
+}
+
+/* 覆盖 Ant Design 样式 */
+.ant-card {
+  @apply rounded-lg overflow-hidden;
+}
+
+.ant-btn-primary {
+  background-color: theme('colors.primary.500') !important;
+}
+
+.ant-btn-primary:hover {
+  background-color: theme('colors.primary.600') !important;
+} 
