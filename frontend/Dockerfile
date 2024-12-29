@@ -10,12 +10,14 @@ COPY public/ public/
 COPY src/ src/
 COPY vite.config.ts ./
 COPY index.html ./
+COPY tailwind.config.js ./
+COPY postcss.config.js ./
 
 # 安装依赖
-RUN npm ci
+RUN npm install
 
 # 暴露端口
 EXPOSE 3000
 
 # 启动开发服务器
-CMD ["npm", "run", "dev", "--", "--host", "--port", "3000"]
+CMD ["npm", "run", "dev"]
