@@ -15,42 +15,4 @@
   .input-primary {
     @apply border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none;
   }
-}
-
-/* 覆盖 Ant Design 样式 */
-.ant-card {
-  @apply rounded-lg overflow-hidden;
-}
-
-.ant-card-body {
-  padding: 16px !important;
-}
-
-.ant-card .ant-card-body {
-  padding: 16px !important;
-}
-
-.ant-list-item {
-  padding: 0 !important;
-}
-
-.ant-card-head {
-  padding: 0 16px !important;
-  min-height: 40px !important;
-}
-
-.ant-card-head-title {
-  padding: 12px 0 !important;
-}
-
-.ant-space {
-  gap: 16px !important;
-}
-
-.ant-btn-primary {
-  background-color: theme('colors.primary.500') !important;
-}
-
-.ant-btn-primary:hover {
-  background-color: theme('colors.primary.600') !important;
 } 
