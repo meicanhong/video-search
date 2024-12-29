@@ -121,32 +121,25 @@ function SessionPage() {
               {/* 相关片段 */}
               {clips.length > 0 && (
                 <div className="bg-white p-4 rounded-lg shadow-sm">
-                  <h2 className="text-base font-bold text-primary-700 mb-3">相关片段</h2>
-                  <div className="flex flex-col gap-3">
+                  <h2 className="text-base font-bold text-primary-700 mb-2">相关片段</h2>
+                  <div className="flex flex-col gap-2">
                     {clips.map((clip, index) => (
-                      <div key={index} className="p-3 bg-white border border-gray-200 rounded-lg hover:shadow-sm transition-shadow duration-200">
-                        <div className="flex flex-col gap-1.5">
-                          <div className="flex items-center gap-2 flex-wrap text-sm">
-                            <span className="font-medium text-primary-700">{clip.video_title}</span>
-                            <span className="text-gray-500">时间点: {clip.timestamp}</span>
-                            <span className="text-gray-500">
-                              相关度: {(clip.relevance * 100).toFixed(0)}%
-                            </span>
-                          </div>
-                          <p className="text-sm text-gray-600">{clip.content}</p>
-                          <a
-                            href={clip.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-primary-500 hover:text-primary-600 inline-flex items-center gap-1.5 text-sm no-underline"
-                          >
-                            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                              <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
-                            </svg>
-                            在 YouTube 查看
-                          </a>
+                      <a
+                        key={index}
+                        href={clip.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block px-3 py-2 bg-white border border-gray-200 rounded-lg hover:shadow-sm hover:border-primary-200 transition-all duration-200 no-underline group"
+                      >
+                        <div className="flex flex-col gap-1">
+                          <h3 className="text-sm font-medium text-gray-900 group-hover:text-primary-800 mb-0 line-clamp-1">
+                            {clip.video_title}
+                          </h3>
+                          <p className="text-sm text-gray-500 mb-0 whitespace-pre-wrap">
+                            [{clip.timestamp}] {clip.content}
+                          </p>
                         </div>
-                      </div>
+                      </a>
                     ))}
                   </div>
                 </div>
