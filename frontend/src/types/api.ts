@@ -52,5 +52,5 @@ export interface VideoClip {
 // 会话分析响应
 export interface SessionAnalysisResponse {
     clips: VideoClip[];
-    total_clips: number;
+    answer: string;
 } 

@@ -15,6 +15,7 @@ function SessionPage() {
   const { searchResult } = (location.state as LocationState) || {};
   const [query, setQuery] = useState('');
   const [clips, setClips] = useState<VideoClip[]>([]);
+  const [answer, setAnswer] = useState<string>('');
 
   // 如果没有搜索结果，重定向到搜索页面
   if (!searchResult) {
@@ -28,6 +29,7 @@ function SessionPage() {
     {
       onSuccess: (data: SessionAnalysisResponse) => {
         setClips(data.clips);
+        setAnswer(data.answer);
       },
       onError: (error) => {
         alert('分析失败，请重试');
@@ -101,7 +103,22 @@ function SessionPage() {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* 分析结果 */}
-            <div>
+            <div className="flex flex-col gap-4">
+              {/* AI 回答 */}
+              {answer && (
+                <div className="bg-white p-4 rounded-lg shadow-sm">
+                  <h2 className="text-base font-bold text-primary-700 mb-3">AI 回答</h2>
+                  <div className="prose prose-sm max-w-none">
+                    {answer.split('\n').map((line, index) => (
+                      <p key={index} className="text-sm text-gray-600 mb-2">
+                        {line}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 相关片段 */}
               {clips.length > 0 && (
                 <div className="bg-white p-4 rounded-lg shadow-sm">
                   <h2 className="text-base font-bold text-primary-700 mb-3">相关片段</h2>
