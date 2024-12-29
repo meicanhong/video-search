@@ -1,19 +1,52 @@
-# YouTube 视频搜索与分析服务
+# YouTube 视频搜索与分析工具
 
-基于 FastAPI 的 YouTube 视频搜索和内容分析服务，支持视频搜索、字幕获取和内容分析等功能。
+基于 FastAPI 和 React 的 YouTube 视频搜索和内容分析工具，支持视频搜索、字幕分析和内容总结。
 
 ## 功能特点
 
-- 视频搜索：根据关键词搜索 YouTube 视频
-- 字幕获取：支持获取视频的自动生成字幕和手动上传字幕
-- 内容分析：使用 GPT 模型分析视频内容，生成摘要和关键点
-- 会话管理：支持创建搜索会话，存储搜索结果和字幕内容
-- 直达链接：提供带时间戳的 YouTube 视频直达链接
+- **视频搜索**：
+  - 基于关键词搜索 YouTube 视频
+  - 支持视频元数据获取（标题、时长、观看次数等）
+  - 自动生成搜索结果总结
 
-## 环境要求
+- **字幕处理**：
+  - 自动获取视频字幕
+  - 支持多语言字幕
+  - 智能选择最佳字幕源
 
-- Python >= 3.8
-- [Rye](https://rye-up.com/guide/installation/) 包管理工具
+- **内容分析**：
+  - 基于 GPT 的内容理解和总结
+  - 精确定位相关视频片段
+  - 提供带时间戳的直达链接
+
+- **用户界面**：
+  - 现代化的 React 前端界面
+  - 响应式设计
+  - 实时内容分析
+  - 优雅的过渡动画
+
+## 技术栈
+
+### 后端
+- Python 3.8+
+- FastAPI
+- YouTube Data API v3
+- OpenAI GPT API
+- structlog 日志系统
+
+### 前端
+- React 18
+- TypeScript
+- Vite
+- Ant Design
+- TailwindCSS
+- React Query
+
+### 开发工具
+- Docker & Docker Compose
+- Rye 包管理
+- Pre-commit hooks
+- ESLint & Prettier
 
 ## 快速开始
 
@@ -25,119 +58,130 @@ cd video-search
 
 2. 配置环境变量
 ```bash
-# 创建 .env 文件并添加以下内容
+# 创建 .env 文件
+cp .env.example .env
+
+# 编辑 .env 文件，添加必要的 API 密钥
 YOUTUBE_API_KEY=your_youtube_api_key
 OPENAI_API_KEY=your_openai_api_key
 ```
 
-3. 安装依赖
+3. 使用 Docker 启动服务
 ```bash
-just install
+# 构建并启动服务
+docker-compose up --build
 ```
 
-4. 启动服务
-```bash
-just dev
-```
+服务将在以下地址启动：
+- 前端：http://localhost:3000
+- 后端：http://localhost:8000
 
-服务将在 http://localhost:8001 启动。
+## 项目结构
+
+```
+video-search/
+├── src/                      # 后端源代码
+│   └── youtube_search/
+│       ├── client.py         # YouTube API 客户端
+│       ├── models.py         # 数据模型
+│       ├── service.py        # 业务逻辑
+│       ├── web.py           # Web API
+│       ├── subtitle.py      # 字幕处理
+│       ├── session.py       # 会话管理
+│       ├── openai_client.py # OpenAI API 客户端
+│       └── utils.py         # 工具函数
+├── frontend/                 # 前端源代码
+│   ├── src/
+│   │   ├── components/      # React 组件
+│   │   ├── hooks/          # 自定义 Hooks
+│   │   ├── pages/          # 页面组件
+│   │   ├── services/       # API 服务
+│   │   ├── types/          # TypeScript 类型
+│   │   └── utils/          # 工具函数
+│   ├── vite.config.ts      # Vite 配置
+│   └── tailwind.config.js  # Tailwind 配置
+├── docs/                    # 项目文档
+├── docker-compose.yml       # Docker 编排配置
+└── Dockerfile              # 后端 Docker 配置
+```
 
 ## API 接口
 
 ### 搜索视频
+```http
+POST /search
+Content-Type: application/json
 
-```bash
-curl -X POST "http://localhost:8001/search" \
-     -H "Content-Type: application/json" \
-     -d '{
-       "keyword": "搜索关键词",
-       "max_results": 3
-     }'
-```
-
-响应示例：
-```json
 {
-  "session_id": "550e8400-e29b-41d4-a716-446655440000",
-  "search_keyword": "搜索关键词",
-  "summary": {
-    "total_videos": 3,
-    "total_duration": 45,
-    "latest_video_date": "2024-01-15T10:00:00Z",
-    "overview": "找到3个相关视频，总时长约45分钟..."
-  },
-  "videos": [
-    {
-      "video_id": "video_id_1",
-      "title": "视频标题",
-      "channel_title": "频道名称",
-      "duration": "15分钟",
-      "view_count": 12000,
-      "published_at": "2024-01-15T10:00:00Z",
-      "thumbnail_url": "https://i.ytimg.com/vi/video_id_1/hqdefault.jpg",
-      "description": "视频描述",
-      "has_subtitles": true,
-      "languages": ["zh-Hans", "en"]
-    }
-  ],
-  "created_at": "2024-01-20T10:00:00Z",
-  "expires_at": "2024-01-20T11:00:00Z"
+    "keyword": "搜索关键词",
+    "max_results": 5
 }
 ```
 
-### 健康检查
+### 分析内容
+```http
+POST /sessions/{session_id}/analyze
+Content-Type: application/json
 
+{
+    "query": "用户问题"
+}
+```
+
+详细的 API 文档请参考 `docs/api_reference.md`。
+
+## 开发指南
+
+### 后端开发
 ```bash
-curl "http://localhost:8001/health"
+# 安装依赖
+just install
+
+# 启动开发服务器
+just dev
+
+# 格式化代码
+just format
 ```
 
-## 项目管理
+### 前端开发
+```bash
+cd frontend
 
-- 安装依赖：`just install`
-- 启动服务：`just dev`
-- 同步依赖：`just sync`
-- 更新项目：`just update`
-- 格式化代码：`just format`
+# 安装依赖
+npm install
 
-## 开发工具
+# 启动开发服务器
+npm run dev
 
-- FastAPI: Web 框架
-- Rye: Python 包管理
-- pre-commit: Git 提交前的代码检查
-- black/isort/ruff: 代码格式化和检查
-
-## 目录结构
-
-```
-video-search/
-├── src/
-│   └── youtube_search/
-│       ├── client.py      # YouTube API 客户端
-│       ├── models.py      # 数据模型
-│       ├── service.py     # 业务逻辑
-│       ├── web.py         # Web API
-│       ├── subtitle.py    # 字幕处理
-│       ├── session.py     # 会话管理
-│       └── openai_client.py # OpenAI API 客户端
-├── docs/                  # 文档
-├── .env                   # 环境变量
-├── .justfile             # 项目管理命令
-└── pyproject.toml        # 项目配置
+# 构建生产版本
+npm run build
 ```
 
 ## 注意事项
 
-1. 确保 YouTube API 密钥和 OpenAI API 密钥配置正确
-2. 会话有效期为 1 小时
-3. 视频搜索结果最多返回 10 个
-4. 字幕获取可能受 YouTube 限制影响
+1. API 密钥安全
+   - 请妥善保管 API 密钥
+   - 不要将 .env 文件提交到版本控制
+   - 建议设置 API 密钥使用限制
+
+2. 资源限制
+   - YouTube API 有每日配额限制
+   - OpenAI API 按使用量计费
+   - 建议实现缓存机制
+
+3. 开发建议
+   - 遵循代码规范和提交规范
+   - 编写单元测试
+   - 使用 TypeScript 类型检查
 
 ## 贡献指南
 
 1. Fork 项目
-2. 创建功能分支
-3. 提交更改
-4. 发起 Pull Request
+2. 创建功能分支 (`git checkout -b feature/AmazingFeature`)
+3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
+4. 推送到分支 (`git push origin feature/AmazingFeature`)
+5. 提交 Pull Request
 
 ## 许可证
 
