@@ -19,14 +19,9 @@ update branch=branch: (pull branch)
 
 dev:
     if command -v watchexec >/dev/null 2>&1; then \
-        watchexec \
-            --watch src \
-            --exts py \
-            --on-busy-update=restart \
-            --stop-signal SIGKILL \
-            -- rye run uvicorn src.youtube_search.web:app --host 0.0.0.0 --port 8000 --reload; \
+        watchexec --watch src --exts py --on-busy-update=restart --stop-signal SIGKILL -- rye run uvicorn src.youtube_search.web:app --host 0.0.0.0 --port 8001 --reload; \
     else \
-        rye run uvicorn src.youtube_search.web:app --host 0.0.0.0 --port 8000 --reload; \
+        rye run uvicorn src.youtube_search.web:app --host 0.0.0.0 --port 8001 --reload; \
     fi
 
 setup:
@@ -77,30 +72,3 @@ install-hooks:
     pre-commit install
 
     echo "Pre-commit hooks installed successfully!"
-
-test:
-    rye run pytest
-
-typecheck:
-    rye run mypy src
-
-lint:
-    rye run ruff check .
-    rye run mypy src
-
-clean:
-    # 删除 Python 缓存文件
-    find . -type d -name "__pycache__" -exec rm -r {} +
-    find . -type f -name "*.pyc" -delete
-    find . -type f -name "*.pyo" -delete
-    find . -type f -name "*.pyd" -delete
-    
-    # 删除测试缓存
-    rm -rf .pytest_cache
-    rm -rf .mypy_cache
-    rm -rf .ruff_cache
-    
-    # 删除构建文件
-    rm -rf build/
-    rm -rf dist/
-    rm -rf *.egg-info

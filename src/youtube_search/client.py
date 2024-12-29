@@ -1,106 +1,89 @@
-import logging
+from datetime import datetime
 from typing import List, Optional
+
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-from tenacity import retry, stop_after_attempt, wait_exponential
 
-from .models import SearchConfig, VideoMetadata
-
-logger = logging.getLogger(__name__)
+from .models import VideoInfo
 
 
-class YouTubeSearchClient:
-    """YouTube search client implementation"""
+class YouTubeClient:
+    """YouTube API 客户端"""
 
-    def __init__(self, config: SearchConfig):
-        """Initialize the YouTube search client
+    def __init__(self, api_key: str):
+        """初始化客户端
 
         Args:
-            config: Search configuration
+            api_key: YouTube API 密钥
         """
-        self.config = config
-        self.youtube = build('youtube', 'v3', developerKey=config.api_key)
+        self.youtube = build('youtube', 'v3', developerKey=api_key)
 
-    @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=4, max=10),
-        reraise=True
-    )
-    async def search(
-        self,
-        query: str,
-        max_results: Optional[int] = None,
-        language: Optional[str] = None
-    ) -> List[VideoMetadata]:
-        """Search YouTube videos
+    async def search_videos(self, query: str, max_results: int = 3) -> List[VideoInfo]:
+        """搜索视频
 
         Args:
-            query: Search query
-            max_results: Maximum number of results to return
-            language: Result language code
+            query: 搜索关键词
+            max_results: 最大返回结果数
 
         Returns:
-            List of video metadata
+            List[VideoInfo]: 视频信息列表
         """
         try:
-            # Build search request
-            search_request = self.youtube.search().list(
+            # 搜索视频
+            search_response = self.youtube.search().list(
                 q=query,
-                part='snippet',
-                maxResults=max_results or self.config.max_results,
+                part='id,snippet',
                 type='video',
-                relevanceLanguage=language or self.config.language,
-                fields='items(id(videoId),snippet(title,description,channelId,channelTitle,publishedAt))'
-            )
+                maxResults=max_results,
+                videoCaption='any'
+            ).execute()
 
-            # Execute search request
-            search_response = search_request.execute()
-
-            # Get video IDs
+            # 获取视频ID列表
             video_ids = [item['id']['videoId']
                          for item in search_response['items']]
 
-            if not video_ids:
-                logger.warning(f"No videos found for query: {query}")
-                return []
+            # 获取视频详细信息
+            videos_response = self.youtube.videos().list(
+                part='snippet,contentDetails,statistics',
+                id=','.join(video_ids)
+            ).execute()
 
-            # Get video details
-            videos_request = self.youtube.videos().list(
-                part='contentDetails,statistics',
-                id=','.join(video_ids),
-                fields='items(id,contentDetails(duration),statistics(viewCount))'
-            )
-            videos_response = videos_request.execute()
-
-            # Create video metadata objects
-            results = []
-            for search_item, video_item in zip(
-                search_response['items'],
-                videos_response['items']
-            ):
-                snippet = search_item['snippet']
-                content_details = video_item['contentDetails']
-                statistics = video_item.get('statistics', {})
-
-                metadata = VideoMetadata(
-                    video_id=search_item['id']['videoId'],
-                    title=snippet['title'],
-                    description=snippet.get('description'),
-                    published_at=snippet['publishedAt'],
-                    channel_id=snippet['channelId'],
-                    channel_title=snippet['channelTitle'],
-                    duration=content_details['duration'],
-                    view_count=int(statistics.get('viewCount', 0)),
-                    thumbnail_url=snippet.get(
-                        'thumbnails', {}).get('high', {}).get('url')
+            # 解析视频信息
+            videos = []
+            for item in videos_response['items']:
+                video = VideoInfo(
+                    video_id=item['id'],
+                    title=item['snippet']['title'],
+                    channel_title=item['snippet']['channelTitle'],
+                    duration=self._format_duration(
+                        item['contentDetails']['duration']),
+                    view_count=int(item['statistics'].get('viewCount', 0)),
+                    published_at=datetime.strptime(
+                        item['snippet']['publishedAt'], '%Y-%m-%dT%H:%M:%SZ'),
+                    thumbnail_url=item['snippet']['thumbnails']['high']['url'],
+                    description=item['snippet']['description'],
+                    has_subtitles=False,  # 默认值，后续会更新
+                    languages=[]  # 默认值，后续会更新
                 )
-                results.append(metadata)
+                videos.append(video)
 
-            return results
+            return videos
 
         except HttpError as e:
-            logger.error(f"YouTube API error: {str(e)}")
-            raise
-        except Exception as e:
-            logger.error(f"Unexpected error: {str(e)}")
-            raise
+            print(f'YouTube API 错误: {e}')
+            return []
+
+    def _format_duration(self, duration: str) -> str:
+        """格式化视频时长
+
+        Args:
+            duration: ISO 8601 格式的时长字符串
+
+        Returns:
+            str: 格式化后的时长字符串
+        """
+        # 简单处理，只考虑分钟
+        minutes = 0
+        if 'M' in duration:
+            minutes = int(duration.split('M')[0].split('T')[-1])
+        return f"{minutes}分钟"

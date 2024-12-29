@@ -1,11 +1,13 @@
-from .models import SearchConfig, VideoMetadata
-from .client import YouTubeSearchClient
-from .service import YouTubeService, VideoResult
+from .models import SearchRequest, SearchResponse, VideoInfo
+from .service import YouTubeService
+from .client import YouTubeClient
+from .openai_client import OpenAIClient
 
 __all__ = [
-    'SearchConfig',
-    'VideoMetadata',
-    'YouTubeSearchClient',
+    'SearchRequest',
+    'SearchResponse',
+    'VideoInfo',
     'YouTubeService',
-    'VideoResult'
+    'YouTubeClient',
+    'OpenAIClient',
 ]
