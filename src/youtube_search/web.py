@@ -5,7 +5,7 @@ from typing import Optional
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from .models import SearchRequest, SearchResponse
+from .models import SearchRequest, SearchResponse, SessionAnalysisRequest, SessionAnalysisResponse, VideoClip
 from .service import YouTubeService
 
 logger = structlog.get_logger()
@@ -61,3 +61,41 @@ async def health_check() -> dict:
     """健康检查接口"""
     logger.info("health_check_called")
     return {"status": "healthy"}
+
+
+@app.post("/sessions/{session_id}/analyze", response_model=SessionAnalysisResponse)
+async def analyze_session_content(request: SessionAnalysisRequest) -> SessionAnalysisResponse:
+    """分析会话内容，找到与问题相关的视频片段"""
+    try:
+        logger.info("analyze_request_received",
+                    session_id=request.session_id,
+                    query=request.query)
+
+        results = await youtube_service.analyze_session_content(
+            session_id=request.session_id,
+            query=request.query
+        )
+
+        # 转换为响应模型
+        clips = [VideoClip(**result) for result in results]
+        response = SessionAnalysisResponse(
+            clips=clips,
+            total_clips=len(clips)
+        )
+
+        logger.info("analyze_completed",
+                    session_id=request.session_id,
+                    total_clips=len(clips))
+        return response
+
+    except ValueError as e:
+        logger.error("analyze_failed_invalid_session",
+                     session_id=request.session_id,
+                     error=str(e))
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error("analyze_failed",
+                     session_id=request.session_id,
+                     error=str(e),
+                     exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))

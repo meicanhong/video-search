@@ -117,3 +117,81 @@ class YouTubeService:
                          error=str(e),
                          exc_info=True)
             raise
+
+    async def analyze_session_content(self, session_id: str, query: str) -> List[Dict]:
+        """基于会话分析用户问题，找到相关视频片段
+
+        Args:
+            session_id: 会话ID
+            query: 用户问题
+
+        Returns:
+            List[Dict]: 相关视频片段列表，每个片段包含视频信息和时间点
+        """
+        try:
+            # 获取会话
+            session = self.sessions.get(session_id)
+            if not session:
+                raise ValueError(f"Session {session_id} not found")
+
+            if session.is_expired():
+                raise ValueError(f"Session {session_id} has expired")
+
+            # 更新最后访问时间
+            session.update_last_accessed()
+
+            # 分析每个视频的字幕
+            results = []
+            for video in session.videos:
+                video_id = video["video_id"]
+                subtitles = session.subtitles.get(video_id)
+
+                if not subtitles:
+                    continue
+
+                # 分析字幕内容
+                analysis = await self.openai_client.analyze_subtitle(
+                    query=query,
+                    subtitles=subtitles,
+                    video_info=video
+                )
+
+                if analysis and analysis.get("clip"):
+                    clip = analysis["clip"]
+                    # 添加视频信息
+                    result = {
+                        "video_id": video_id,
+                        "video_title": video["title"],
+                        "content": clip["content"],
+                        "timestamp": clip["timestamp"],
+                        "relevance": clip["relevance"],
+                        "url": f"https://youtube.com/watch?v={video_id}&t={self._timestamp_to_seconds(clip['timestamp'])}"
+                    }
+                    results.append(result)
+
+            # 按相关度排序
+            results.sort(key=lambda x: x["relevance"], reverse=True)
+            return results
+
+        except Exception as e:
+            logger.error("analyze_session_content_failed",
+                         session_id=session_id,
+                         query=query,
+                         error=str(e),
+                         exc_info=True)
+            raise
+
+    def _timestamp_to_seconds(self, timestamp: str) -> int:
+        """将 MM:SS 格式的时间戳转换为秒数
+
+        Args:
+            timestamp: MM:SS 格式的时间戳
+
+        Returns:
+            int: 秒数
+        """
+        try:
+            minutes, seconds = map(int, timestamp.split(":"))
+            return minutes * 60 + seconds
+        except Exception:
+            return 0

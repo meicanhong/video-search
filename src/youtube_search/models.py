@@ -36,3 +36,25 @@ class SearchResponse(BaseModel):
     videos: List[VideoInfo]
     created_at: datetime
     expires_at: datetime
+
+
+class SessionAnalysisRequest(BaseModel):
+    """会话内容分析请求"""
+    session_id: str = Field(..., description="会话ID")
+    query: str = Field(..., description="用户问题")
+
+
+class VideoClip(BaseModel):
+    """视频片段信息"""
+    video_id: str = Field(..., description="视频ID")
+    video_title: str = Field(..., description="视频标题")
+    content: str = Field(..., description="相关内容")
+    timestamp: str = Field(..., description="时间戳（MM:SS格式）")
+    relevance: float = Field(..., ge=0, le=1, description="相关度（0-1）")
+    url: str = Field(..., description="带时间戳的YouTube直达链接")
+
+
+class SessionAnalysisResponse(BaseModel):
+    """会话内容分析响应"""
+    clips: List[VideoClip] = Field(..., description="相关视频片段列表")
+    total_clips: int = Field(..., description="找到的相关片段数量")
