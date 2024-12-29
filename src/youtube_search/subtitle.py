@@ -1,6 +1,8 @@
 import logging
+import asyncio
 from typing import Optional, Dict, List
 from youtube_transcript_api import YouTubeTranscriptApi
+from functools import partial
 
 logger = logging.getLogger(__name__)
 
@@ -25,9 +27,10 @@ class SubtitleFetcher:
             proxy: 代理配置，默认为None
         """
         self.proxy = proxy or get_proxy()
+        self._loop = asyncio.get_event_loop()
 
-    def get_transcript(self, video_id: str, prefer_language: str = None) -> Optional[List[Dict]]:
-        """获取视频字幕，按优先级获取：人工字幕 > 自动生成字幕 > 翻译字幕
+    async def get_transcript(self, video_id: str, prefer_language: str = None) -> Optional[List[Dict]]:
+        """异步获取视频字幕，按优先级获取：人工字幕 > 自动生成字幕 > 翻译字幕
 
         Args:
             video_id: YouTube视频ID
@@ -35,21 +38,13 @@ class SubtitleFetcher:
 
         Returns:
             Optional[List[Dict]]: 字幕数据列表，每项包含text、start和duration，获取失败返回None
-            示例：
-            [
-                {
-                    'text': '字幕文本',
-                    'start': 0.0,      # 开始时间（秒）
-                    'duration': 1.5     # 持续时间（秒）
-                },
-                ...
-            ]
         """
         try:
-            # 获取字幕对象
-            transcripts = YouTubeTranscriptApi.list_transcripts(
-                video_id,
-                proxies=self.proxy
+            # 在线程池中执行阻塞操作
+            transcripts = await self._loop.run_in_executor(
+                None,
+                partial(YouTubeTranscriptApi.list_transcripts,
+                        video_id, proxies=self.proxy)
             )
 
             # 获取可用的语言列表（按优先级）
@@ -78,13 +73,16 @@ class SubtitleFetcher:
                 language_codes.remove(prefer_language)
                 language_codes.insert(0, prefer_language)
 
-            # 获取字幕
-            return YouTubeTranscriptApi.get_transcript(
-                video_id=video_id,
-                languages=language_codes,
-                proxies=self.proxy
+            # 异步获取字幕
+            return await self._loop.run_in_executor(
+                None,
+                partial(YouTubeTranscriptApi.get_transcript,
+                        video_id=video_id,
+                        languages=language_codes,
+                        proxies=self.proxy)
             )
 
         except Exception as e:
-            logger.error(f"Error getting transcript for video {video_id}")
+            logger.error(
+                f"Error getting transcript for video {video_id}: {str(e)}")
             return None

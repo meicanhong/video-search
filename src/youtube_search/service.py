@@ -1,8 +1,9 @@
 import os
 import structlog
 from datetime import datetime, timedelta
-from typing import List, Dict
+from typing import List, Dict, Tuple
 import uuid
+import asyncio
 
 from .client import YouTubeClient
 from .models import SearchResponse, SearchSummary, VideoInfo
@@ -21,6 +22,43 @@ class YouTubeService:
             api_key=os.getenv("OPENAI_API_KEY", ""))
         self.subtitle_fetcher = SubtitleFetcher()
         self.sessions: Dict[str, SearchSession] = {}
+
+    async def _fetch_video_info(self, video) -> Tuple[VideoInfo, List[Dict]]:
+        """获取单个视频的信息和字幕
+
+        Args:
+            video: YouTube视频信息
+
+        Returns:
+            Tuple[VideoInfo, List[Dict]]: 视频信息和字幕列表
+        """
+        logger.info("fetching_video_info", video_id=video.video_id)
+
+        # 获取字幕信息
+        transcript = await self.subtitle_fetcher.get_transcript(video.video_id)
+        has_subtitles = transcript is not None
+
+        video_info = VideoInfo(
+            video_id=video.video_id,
+            title=video.title,
+            channel_title=video.channel_title,
+            duration=video.duration,
+            view_count=video.view_count,
+            published_at=video.published_at,
+            thumbnail_url=f"https://i.ytimg.com/vi/{video.video_id}/hqdefault.jpg",
+            description=video.description,
+            has_subtitles=has_subtitles
+        )
+
+        subtitles = []
+        if transcript:
+            subtitles = [{
+                "video_id": video.video_id,
+                "video_title": video.title,
+                **sub
+            } for sub in transcript]
+
+        return video_info, (transcript, subtitles)
 
     async def search_videos(self, keyword: str, max_results: int = 3) -> SearchResponse:
         """搜索视频并创建会话
@@ -44,40 +82,19 @@ class YouTubeService:
             session.search_keyword = keyword
             self.sessions[session_id] = session
 
-            # 获取视频详细信息和字幕
-            video_infos: List[VideoInfo] = []
+            # 并发获取视频详细信息和字幕
+            tasks = [self._fetch_video_info(video) for video in videos]
+            results = await asyncio.gather(*tasks)
+
+            video_infos = []
             all_subtitles = []
 
-            for video in videos:
-                log = logger.bind(video_id=video.video_id)
-
-                # 获取字幕信息
-                transcript = self.subtitle_fetcher.get_transcript(
-                    video.video_id)
-                has_subtitles = transcript is not None
-
-                video_info = VideoInfo(
-                    video_id=video.video_id,
-                    title=video.title,
-                    channel_title=video.channel_title,
-                    duration=video.duration,
-                    view_count=video.view_count,
-                    published_at=video.published_at,
-                    thumbnail_url=f"https://i.ytimg.com/vi/{video.video_id}/hqdefault.jpg",
-                    description=video.description,
-                    has_subtitles=has_subtitles
-                )
+            # 处理结果
+            for video_info, (transcript, subtitles) in results:
                 video_infos.append(video_info)
-
+                all_subtitles.extend(subtitles)
                 # 存储视频和字幕信息到会话
                 session.add_video(video_info.dict(), transcript)
-
-                if transcript:
-                    all_subtitles.extend([{
-                        "video_id": video.video_id,
-                        "video_title": video.title,
-                        **sub
-                    } for sub in transcript])
 
             transcript_text = ""
             for sub in all_subtitles:
