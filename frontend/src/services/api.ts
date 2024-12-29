@@ -8,7 +8,7 @@ import type {
 } from '@/types/api';
 
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8001';
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
 
 
 const api = axios.create({

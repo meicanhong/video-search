@@ -21,7 +21,7 @@ dev:
     if command -v watchexec >/dev/null 2>&1; then \
         watchexec --watch src --exts py --on-busy-update=restart --stop-signal SIGKILL -- rye run uvicorn src.youtube_search.web:app --host 0.0.0.0 --port 8001 --reload; \
     else \
-        rye run uvicorn src.youtube_search.web:app --host 0.0.0.0 --port 8001 --reload; \
+        rye run uvicorn src.youtube_search.web:app --host 0.0.0.0 --port 8000 --reload; \
     fi
 
 setup:

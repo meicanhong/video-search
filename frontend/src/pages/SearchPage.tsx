@@ -2,11 +2,31 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation } from 'react-query';
 import { searchVideos } from '@/services/api';
+import { Toast } from '@/components/Toast';
 import type { SearchResponse } from '@/types/api';
+
+interface ToastState {
+  show: boolean;
+  message: string;
+  type: 'success' | 'error' | 'warning';
+}
 
 function SearchPage() {
   const [keyword, setKeyword] = useState('');
+  const [toast, setToast] = useState<ToastState>({
+    show: false,
+    message: '',
+    type: 'error'
+  });
   const navigate = useNavigate();
+
+  const showToast = (message: string, type: ToastState['type'] = 'error') => {
+    setToast({ show: true, message, type });
+  };
+
+  const hideToast = () => {
+    setToast(prev => ({ ...prev, show: false }));
+  };
 
   const { mutate: search, isLoading } = useMutation(
     (searchKeyword: string) => searchVideos({ keyword: searchKeyword, max_results: 5 }),
@@ -16,13 +36,35 @@ function SearchPage() {
           state: { searchResult: data }
         });
       },
+      onError: (error: any) => {
+        if (error.response) {
+          switch (error.response.status) {
+            case 404:
+              showToast('未找到相关视频，请尝试其他关键词', 'warning');
+              break;
+            case 429:
+              showToast('请求过于频繁，请稍后再试', 'warning');
+              break;
+            case 500:
+              showToast('服务器内部错误，请稍后再试', 'error');
+              break;
+            default:
+              showToast('搜索失败，请稍后重试', 'error');
+          }
+        } else if (error.request) {
+          showToast('无法连接到服务器，请检查网络连接', 'error');
+        } else {
+          showToast('搜索出错，请稍后重试', 'error');
+        }
+        console.error('Search error:', error);
+      }
     }
   );
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (!keyword.trim()) {
-      alert('请输入搜索关键词');
+      showToast('请输入搜索关键词', 'warning');
       return;
     }
     search(keyword.trim());
@@ -30,6 +72,13 @@ function SearchPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
+      {toast.show && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={hideToast}
+        />
+      )}
       {/* 导航栏 */}
       <nav className="bg-white/80 backdrop-blur-md fixed w-full z-10 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -41,7 +90,7 @@ function SearchPage() {
               <span className="text-xl font-bold text-gray-900">Video Search</span>
             </div>
             <div className="flex items-center gap-4">
-              <a href="https://github.com/yourusername/video-search" target="_blank" rel="noopener noreferrer" 
+              <a href="https://github.com/meicanhong/video-search" target="_blank" rel="noopener noreferrer" 
                 className="text-gray-500 hover:text-gray-700 transition-colors">
                 <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
