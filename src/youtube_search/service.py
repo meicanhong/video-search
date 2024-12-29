@@ -151,6 +151,8 @@ class YouTubeService:
         Returns:
             List[Dict]: 相关视频片段列表，每个片段包含视频信息和时间点
         """
+        logger.info("finding_relevant_clips",
+                    session_id=session_id, query=query)
         try:
             # 获取会话
             session = self.sessions.get(session_id)
@@ -235,6 +237,11 @@ class YouTubeService:
         Returns:
             str: 生成的回答
         """
+        logger.info("answering_question_from_clips",
+                    session_id=session.session_id,
+                    query=query,
+                    clips=clips)
+
         # 收集相关视频的字幕
         relevant_subtitles = []
 
@@ -277,7 +284,7 @@ class YouTubeService:
             answer = await self.openai_client.answer_question(
                 query=query,
                 transcript=context,
-                max_tokens=800
+                max_tokens=500
             )
             if answer:
                 return answer
