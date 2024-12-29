@@ -150,51 +150,30 @@ class OpenAIClient:
     )
     async def generate_answer(
         self,
-        query: str,
-        clips: List[Dict],
+        transcript: str,
         max_tokens: int = 300
-    ) -> Dict:
-        """根据所有相关片段生成综合答案
+    ) -> str:
+        """总结字幕内容
 
         Args:
-            query: 用户问题
-            clips: 相关视频片段列表
+            transcript: 字幕文本内容
             max_tokens: 最大返回token数
 
         Returns:
-            Dict: 包含答案和可信度的字典
+            str: 内容总结
         """
-        if not clips:
-            return None
-
         system_prompt = """
         你是一个视频内容分析助手。你的任务是：
-        1. 分析所有相关视频片段
-        2. 生成一个综合的、准确的答案
-        3. 评估答案的可信度
-        
-        输出格式要求：
-        {
-            "summary": "综合答案",
-            "confidence": 0.0到1.0的可信度
-        }
+        1. 分析字幕内容
+        2. 生成简洁的内容总结
+        3. 总结要点到点，不要太啰嗦
         """
 
-        clips_text = "\n".join([
-            f"视频: {clip['video_title']}\n"
-            f"时间点: {clip['timestamp']}\n"
-            f"内容: {clip['content']}\n"
-            f"相关度: {clip['relevance']}\n"
-            for clip in clips
-        ])
-
         user_prompt = f"""
-        用户问题: {query}
+        字幕内容:
+        {transcript}
         
-        相关视频片段:
-        {clips_text}
-        
-        请根据以上视频片段生成一个综合的答案，并评估答案的可信度。
+        请生成一个简洁的总结。
         """
 
         try:
@@ -208,7 +187,7 @@ class OpenAIClient:
                 temperature=0.7
             )
 
-            return self._parse_json_response(response.choices[0].message.content)
+            return response.choices[0].message.content.strip()
 
         except Exception as e:
             logger.error(f"OpenAI API error: {str(e)}")
