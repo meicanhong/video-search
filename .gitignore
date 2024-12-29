@@ -32,20 +32,13 @@ ENV/
 .vscode/
 *.swp
 *.swo
-.DS_Store
-
-# Rye
-.python-version
-.rye/
-
-# Testing
-.coverage
-htmlcov/
-.pytest_cache/
-.mypy_cache/
 
 # Logs
 *.log
 
-# Keep .justfile
+# Local development
+.ruff_cache/
+.mypy_cache/
+
+# Keep justfile
 !.justfile 
