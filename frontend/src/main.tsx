@@ -1,9 +1,11 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from 'react-query';
 import { ConfigProvider, theme } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
-import App from './App';
+import SearchPage from './pages/SearchPage';
+import SessionPage from './pages/SessionPage';
 import './index.css';
 
 const queryClient = new QueryClient({
@@ -28,7 +30,12 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           },
         }}
       >
-        <App />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<SearchPage />} />
+            <Route path="/session/:sessionId" element={<SessionPage />} />
+          </Routes>
+        </BrowserRouter>
       </ConfigProvider>
     </QueryClientProvider>
   </React.StrictMode>

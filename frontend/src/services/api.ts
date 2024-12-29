@@ -18,11 +18,14 @@ export const searchVideos = async (params: SearchRequest): Promise<SearchRespons
 
 export const analyzeSessionContent = async (
     sessionId: string,
-    params: Omit<SessionAnalysisRequest, 'session_id'>
+    query: string
 ): Promise<SessionAnalysisResponse> => {
     const { data } = await api.post<SessionAnalysisResponse>(
         `/sessions/${sessionId}/analyze`,
-        params
+        {
+            session_id: sessionId,
+            query
+        }
     );
     return data;
 }; 
