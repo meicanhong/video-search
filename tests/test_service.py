@@ -117,38 +117,103 @@ async def test_locate_answer():
     print(f"\n搜索问题: {question}")
 
     # 执行搜索
-    results = await service.search_with_content_analysis(question, max_results=3)
+    result = await service.search_with_content_analysis(question, max_results=3)
 
     # 验证结果
-    assert results is not None
-    assert len(results) > 0
+    assert result is not None
+    assert "answer" in result
+    assert "relevant_clips" in result
 
-    # 打印每个视频的信息和关键时刻
-    for i, video in enumerate(results, 1):
-        print(f"\n=== 视频 {i} ===")
-        print(f"标题: {video.get('title', '')}")
-        print(f"链接: {video.get('link', '')}")
+    # 打印综合答案
+    answer = result.get("answer")
+    if answer:
+        print("\n=== 综合答案 ===")
+        print(f"答案: {answer.get('summary', '')}")
+        print(f"可信度: {answer.get('confidence', 0):.2f}")
 
-        # 打印关键时刻
-        analysis = video.get('content_analysis', {})
-        if analysis and analysis.get('key_moments'):
-            print("\n相关片段:")
-            for moment in analysis['key_moments']:
-                print(f"时间点: {moment['time']}")
-                print(f"内容: {moment['text']}")
-                print(f"相关度: {moment['relevance']:.2f}")
-                print(f"直达链接: {moment['direct_link']}")
+    # 打印相关片段
+    clips = result.get("relevant_clips", [])
+    if clips:
+        print("\n=== 相关视频片段 ===")
+        for clip in clips:
+            print(f"\n视频: {clip.get('video_title', '')}")
+            print(f"时间点: {clip.get('timestamp', '')}")
+            print(f"内容: {clip.get('content', '')}")
+            print(f"相关度: {clip.get('relevance', 0):.2f}")
+            print(f"直达链接: {clip.get('direct_link', '')}")
+            print("---")
+    else:
+        print("\n未找到相关内容")
+
+
+async def test_session_workflow():
+    """测试会话工作流程"""
+    print("\n=== 测试: 会话工作流程 ===")
+
+    # 初始化服务
+    service = YouTubeService()
+
+    # 第一步：创建搜索会话
+    keyword = "熊猫速汇"
+    print(f"\n第一步 - 创建搜索会话")
+    print(f"搜索关键词: {keyword}")
+
+    session_info = await service.create_search_session(keyword, max_results=3)
+
+    # 验证会话信息
+    assert session_info is not None
+    assert "session_id" in session_info
+    assert session_info["search_keyword"] == keyword
+
+    # 打印会话信息
+    print("\n会话信息:")
+    print(f"会话ID: {session_info['session_id']}")
+    print(f"创建时间: {session_info['created_at']}")
+    print(f"视频数量: {session_info['video_count']}")
+
+    print("\n找到的视频:")
+    for video in session_info["videos"]:
+        print(f"- {video['title']}")
+        print(f"  链接: {video['link']}")
+
+    # 第二步：在会话中提问
+    print(f"\n第二步 - 在会话中提问")
+    questions = [
+        "熊猫速汇的手续费是多少？",
+        "熊猫速汇安全吗？",
+        "如何注册熊猫速汇？"
+    ]
+
+    for question in questions:
+        print(f"\n问题: {question}")
+        result = await service.answer_question(session_info["session_id"], question)
+
+        # 打印答案
+        answer = result.get("answer")
+        if answer:
+            print("\n综合答案:")
+            print(f"答案: {answer.get('summary', '')}")
+            print(f"可信度: {answer.get('confidence', 0):.2f}")
+
+        # 打印相关片段
+        clips = result.get("relevant_clips", [])
+        if clips:
+            print("\n相关视频片段:")
+            for clip in clips:
+                print(f"\n视频: {clip.get('video_title', '')}")
+                print(f"时间点: {clip.get('timestamp', '')}")
+                print(f"内容: {clip.get('content', '')}")
+                print(f"相关度: {clip.get('relevance', 0):.2f}")
+                print(f"直达链接: {clip.get('direct_link', '')}")
                 print("---")
         else:
             print("\n未找到相关内容")
 
-        print("=" * 80)
-
 
 async def main():
     """运行所有测试"""
-    print("=== 测试1: 定位问题答案 ===")
-    await test_locate_answer()
+    print("=== 测试: 会话式问答功能 ===")
+    await test_session_workflow()
 
 
 if __name__ == '__main__':

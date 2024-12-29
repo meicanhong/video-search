@@ -1,67 +1,73 @@
 import pytest
-import asyncio
-from dotenv import load_dotenv
+import os
 from src.youtube_search.openai_client import OpenAIClient
 
-# 加载环境变量
-load_dotenv()
-
 
 @pytest.mark.asyncio
-async def test_analyze_subtitle():
-    """测试字幕内容分析"""
-    client = OpenAIClient()
+async def test_gpt4o_analyze():
+    """测试 gpt-4o 模型分析字幕"""
+    api_key = os.getenv('OPENAI_API_KEY')
+    if not api_key:
+        pytest.skip("OpenAI API key not found")
 
-    # 测试字幕文本
-    subtitle_text = """
-    大家好啊, 一个香港银行的账户, 可以帮你给美股港股入金, 也可以帮你去买利率很高的美元定存,
-    还可以作为资金的枢纽, 帮你的钱在全球流通, 那如果你的主要资金是在中国大陆,
-    怎么合法合规的汇款到香港的银行账户呢, 我们用到最多的方式就是银行电汇,
-    但你可能也听说过有个产品叫做熊猫速汇, 说能够提供更好的服务, 能够更快更便宜的完成汇款。
-    """
+    client = OpenAIClient(api_key)
 
-    # 测试查询
-    query = "熊猫速汇和银行电汇的区别"
-
-    # 分析内容
-    result = await client.analyze_subtitle(query, subtitle_text)
-
-    # 验证结果
-    assert isinstance(result, str)
-    assert len(result) > 0
-
-
-@pytest.mark.asyncio
-async def test_summarize_subtitles():
-    """测试字幕内容总结"""
-    client = OpenAIClient()
-
-    # 测试字幕数据
+    # 模拟字幕数据
     subtitles = [
+        {"text": "今天我们来讨论熊猫速汇的手续费", "start": 99},
+        {"text": "熊猫速汇每笔收费是80人民币", "start": 100},
+        {"text": "这个价格相对其他平台来说比较合理", "start": 105}
+    ]
+
+    video_info = {
+        "title": "海外汇款平台对比",
+        "video_id": "test123"
+    }
+
+    # 测试分析功能
+    result = await client.analyze_subtitle(
+        query="熊猫速汇的手续费是多少？",
+        subtitles=subtitles,
+        video_info=video_info
+    )
+
+    # 验证返回结果
+    assert result is not None
+    assert "clip" in result
+    assert "content" in result["clip"]
+    assert "timestamp" in result["clip"]
+    assert "relevance" in result["clip"]
+    assert result["clip"]["relevance"] >= 0.8  # 相关度应该很高
+
+
+@pytest.mark.asyncio
+async def test_gpt4o_answer():
+    """测试 gpt-4o 模型生成答案"""
+    api_key = os.getenv('OPENAI_API_KEY')
+    if not api_key:
+        pytest.skip("OpenAI API key not found")
+
+    client = OpenAIClient(api_key)
+
+    # 模拟相关片段
+    clips = [
         {
-            "text": "大家好啊, 一个香港银行的账户",
-            "start": 0.0,
-            "duration": 2.0
-        },
-        {
-            "text": "可以帮你给美股港股入金",
-            "start": 2.0,
-            "duration": 2.0
-        },
-        {
-            "text": "也可以帮你去买利率很高的美元定存",
-            "start": 4.0,
-            "duration": 2.0
+            "video_title": "海外汇款平台对比",
+            "timestamp": "01:40",
+            "content": "熊猫速汇每笔收费是80人民币",
+            "relevance": 0.95
         }
     ]
 
-    # 总结内容
-    result = await client.summarize_subtitles(subtitles)
+    # 测试回答功能
+    result = await client.generate_answer(
+        query="熊猫速汇的手续费是多少？",
+        clips=clips
+    )
 
-    # 验证结果
-    assert isinstance(result, str)
-    assert len(result) > 0
-
-
-if __name__ == '__main__':
-    asyncio.run(pytest.main([__file__]))
+    # 验证返回结果
+    assert result is not None
+    assert "summary" in result
+    assert "confidence" in result
+    assert result["confidence"] >= 0.8  # 可信度应该很高
+    assert "80" in result["summary"]  # 答案应该包含具体费用

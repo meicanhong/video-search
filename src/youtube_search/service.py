@@ -2,12 +2,14 @@ import os
 import logging
 from typing import List, Dict, Optional
 from dataclasses import dataclass
+import uuid
 
 from .models import SearchConfig, VideoMetadata
 from .client import YouTubeSearchClient
 from .subtitle import SubtitleFetcher
 from .openai_client import OpenAIClient
 from .utils import format_duration
+from .session import SearchSession
 
 logger = logging.getLogger(__name__)
 
@@ -55,12 +57,7 @@ class YouTubeService:
         youtube_api_key: Optional[str] = None,
         openai_api_key: Optional[str] = None
     ):
-        """初始化服务
-
-        Args:
-            youtube_api_key: YouTube API密钥，如果为None则从环境变量获取
-            openai_api_key: OpenAI API密钥，如果为None则从环境变量获取
-        """
+        """初始化服务"""
         self.youtube_api_key = youtube_api_key or os.getenv('YOUTUBE_API_KEY')
         if not self.youtube_api_key:
             raise ValueError("YouTube API key is required")
@@ -69,7 +66,7 @@ class YouTubeService:
         self.search_client = YouTubeSearchClient(
             SearchConfig(
                 api_key=self.youtube_api_key,
-                max_results=5,
+                max_results=10,
                 language='zh'
             )
         )
@@ -82,139 +79,152 @@ class YouTubeService:
         if openai_api_key or os.getenv('OPENAI_API_KEY'):
             self.openai_client = OpenAIClient(openai_api_key)
 
-    async def search_videos_with_subtitles(
+        # 会话存储
+        self.sessions: Dict[str, SearchSession] = {}
+
+    async def create_search_session(
         self,
-        query: str,
-        prefer_language: str = 'zh-Hans',
-        analyze_content: bool = True
-    ) -> List[VideoResult]:
-        """搜索视频并获取字幕
+        keyword: str,
+        max_results: int = 10
+    ) -> Dict:
+        """创建新的搜索会话
 
         Args:
-            query: 搜索关键词
-            prefer_language: 首选字幕语言
-            analyze_content: 是否使用OpenAI分析内容
-
-        Returns:
-            List[VideoResult]: 视频结果列表，每个结果包含视频信息和字幕
-        """
-        # 搜索视频
-        logger.info(f"搜索视频: {query}")
-        try:
-            videos = await self.search_client.search(query)
-            if not videos:
-                logger.warning(f"未找到相关视频: {query}")
-                return []
-        except Exception as e:
-            logger.error(f"搜索视频时出错: {str(e)}")
-            raise
-
-        # 获取字幕和分析内容
-        results = []
-        for video in videos:
-            try:
-                # 获取字幕
-                logger.info(f"获取视频字幕: {video.video_id}")
-                subtitle = self.subtitle_fetcher.get_transcript(
-                    video.video_id,
-                    prefer_language=prefer_language
-                )
-
-                # 创建结果对象
-                result = VideoResult(video=video, subtitle=subtitle)
-
-                # 如果有字幕且启用了内容分析
-                if subtitle and analyze_content and self.openai_client:
-                    try:
-                        # 获取内容总结
-                        result.summary = await self.openai_client.summarize_subtitles(
-                            subtitle
-                        )
-
-                        # 分析与查询的相关性
-                        result.analysis = await self.openai_client.analyze_subtitle(
-                            query,
-                            result.get_subtitle_text()
-                        )
-                    except Exception as e:
-                        logger.warning(f"内容分析出错: {str(e)}")
-
-                results.append(result)
-
-            except Exception as e:
-                logger.warning(f"获取视频 {video.video_id} 的字幕时出错: {str(e)}")
-                # 即使获取字幕失败，也添加视频信息
-                results.append(VideoResult(video=video))
-
-        return results
-
-    async def search_with_content_analysis(self, query: str, max_results: int = 5) -> List[Dict]:
-        """搜索视频并分析内容
-
-        Args:
-            query: 搜索关键词
+            keyword: 搜索关键词
             max_results: 最大返回结果数
 
         Returns:
-            List[Dict]: 搜索结果列表，包含视频信息和内容分析
+            Dict: 会话信息
         """
+        # 创建会话
+        session_id = str(uuid.uuid4())
+        session = SearchSession(session_id)
+        session.search_keyword = keyword
+
         try:
             # 搜索视频
-            videos = await self.search_client.search(query, max_results)
-            results = []
+            videos = await self.search_client.search(keyword, max_results)
 
+            # 获取字幕并存储到会话
             for video in videos:
                 video_info = {
+                    "video_id": video.video_id,
                     "title": video.title,
-                    "channel": video.channel_title,
+                    "channel_title": video.channel_title,
                     "duration": video.duration,
-                    "views": video.view_count,
-                    "link": f"https://youtube.com/watch?v={video.video_id}"
+                    "views": video.view_count
                 }
 
-                try:
-                    # 获取字幕
-                    subtitles = self.subtitle_fetcher.get_transcript(
-                        video.video_id)
-                    if not subtitles:
-                        logger.warning(
-                            f"No subtitles found for video {video.video_id}")
-                        continue
+                # 获取字幕
+                subtitles = self.subtitle_fetcher.get_transcript(
+                    video.video_id)
+                session.add_video(video_info, subtitles)
 
-                    # 分析内容
-                    analysis = await self.openai_client.analyze_subtitle(
-                        query=query,
-                        subtitles=subtitles
-                    )
+            # 存储会话
+            self.sessions[session_id] = session
 
-                    # 处理时间戳和直达链接
-                    timestamps = analysis.get("timestamps", [])
-                    for moment in timestamps:
-                        # 解析时间字符串 (MM:SS) 转换为秒数
-                        time_parts = moment["time"].split(":")
-                        seconds = int(time_parts[0]) * 60 + int(time_parts[1])
-                        # 添加直达链接
-                        moment["direct_link"] = f"{video_info['link']}&t={seconds}"
-
-                    # 添加分析结果
-                    video_info.update({
-                        "content_analysis": {
-                            "summary": analysis.get("summary", ""),
-                            "relevant": analysis.get("relevant", False),
-                            "details": analysis.get("details"),
-                            "key_moments": timestamps
-                        }
-                    })
-
-                    results.append(video_info)
-
-                except Exception as e:
-                    logger.error(
-                        f"Error analyzing video {video.video_id}: {str(e)}")
-                    continue
-
-            return results
+            # 返回会话信息
+            return session.get_session_info()
 
         except Exception as e:
-            logger.error(f"Error in search_with_content_analysis: {str(e)}")
+            logger.error(f"Error creating search session: {str(e)}")
             raise
+
+    async def answer_question(
+        self,
+        session_id: str,
+        question: str
+    ) -> Dict:
+        """在会话中回答问题
+
+        Args:
+            session_id: 会话ID
+            question: 用户问题
+
+        Returns:
+            Dict: 包含答案和相关片段的字典
+        """
+        # 获取会话
+        session = self.sessions.get(session_id)
+        if not session:
+            raise ValueError(f"Session {session_id} not found")
+
+        if session.is_expired():
+            raise ValueError(f"Session {session_id} has expired")
+
+        try:
+            # 更新访问时间
+            session.update_last_accessed()
+
+            # 获取所有字幕
+            all_subtitles = session.get_all_subtitles()
+            if not all_subtitles:
+                return {
+                    "answer": None,
+                    "relevant_clips": []
+                }
+
+            # 分析所有视频的字幕内容
+            all_clips = []
+            for video in session.videos:
+                if video["video_id"] not in session.subtitles:
+                    continue
+
+                subtitles = session.subtitles[video["video_id"]]
+                clip = await self.openai_client.analyze_subtitle(
+                    query=question,
+                    subtitles=subtitles,
+                    video_info=video
+                )
+
+                if clip:
+                    # 添加视频信息到片段
+                    clip_info = {
+                        "content": clip["clip"]["content"],
+                        "timestamp": clip["clip"]["timestamp"],
+                        "relevance": clip["clip"]["relevance"],
+                        "video_title": video["title"],
+                        "direct_link": f"https://youtube.com/watch?v={video['video_id']}&t={self._time_to_seconds(clip['clip']['timestamp'])}"
+                    }
+                    all_clips.append(clip_info)
+
+            # 按相关度排序
+            all_clips.sort(key=lambda x: x["relevance"], reverse=True)
+
+            # 生成综合答案
+            answer = await self.openai_client.generate_answer(
+                query=question,
+                clips=all_clips
+            ) if all_clips else None
+
+            return {
+                "answer": answer,
+                "relevant_clips": all_clips
+            }
+
+        except Exception as e:
+            logger.error(
+                f"Error answering question in session {session_id}: {str(e)}")
+            raise
+
+    def cleanup_expired_sessions(self):
+        """清理过期的会话"""
+        expired_sessions = [
+            session_id
+            for session_id, session in self.sessions.items()
+            if session.is_expired()
+        ]
+        for session_id in expired_sessions:
+            del self.sessions[session_id]
+
+    def _time_to_seconds(self, time_str: str) -> int:
+        """将时间字符串转换为秒数
+
+        Args:
+            time_str: 时间字符串 (MM:SS)
+
+        Returns:
+            int: 秒数
+        """
+        parts = time_str.split(":")
+        return int(parts[0]) * 60 + int(parts[1])

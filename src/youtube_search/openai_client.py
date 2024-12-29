@@ -15,13 +15,55 @@ class OpenAIClient:
         """初始化 OpenAI 客户端
 
         Args:
-            api_key: OpenAI API密钥，如果为None则从环境变量获取
+            api_key: OpenAI API key
         """
         self.api_key = api_key or os.getenv('OPENAI_API_KEY')
         if not self.api_key:
             raise ValueError("OpenAI API key is required")
 
-        self.client = AsyncOpenAI(api_key=self.api_key)
+        # 初始化 OpenAI 客户端
+        self.client = AsyncOpenAI(
+            api_key=self.api_key,
+            timeout=30.0
+        )
+
+    def _parse_json_response(self, content: str) -> Optional[Dict]:
+        """解析可能包含 Markdown 代码块的 JSON 响应
+
+        Args:
+            content: OpenAI 响应内容
+
+        Returns:
+            Dict: 解析后的 JSON 对象，如果解析失败则返回 None
+        """
+        content = content.strip()
+
+        # 处理 "null" 响应
+        if content.lower() == "null":
+            return None
+
+        # 尝试直接解析
+        try:
+            return json.loads(content)
+        except json.JSONDecodeError:
+            pass
+
+        # 尝试从 Markdown 代码块中提取
+        if content.startswith("```") and content.endswith("```"):
+            # 移除首尾的 ``` 标记
+            content = content.strip("`")
+            # 移除可能的语言标记（如 ```json）
+            content = content.split("\n", 1)[1] if "\n" in content else content
+
+            try:
+                return json.loads(content.strip())
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse JSON from Markdown block: {e}")
+                logger.error(f"Content: {content}")
+                return None
+
+        logger.error(f"Failed to parse response: {content}")
+        return None
 
     @retry(
         stop=stop_after_attempt(3),
@@ -31,17 +73,19 @@ class OpenAIClient:
         self,
         query: str,
         subtitles: List[Dict],
-        max_tokens: int = 300
+        video_info: Dict,
+        max_tokens: int = 500
     ) -> Dict:
         """分析字幕内容，找到与查询相关的片段和时间点
 
         Args:
             query: 用户查询
             subtitles: 字幕列表，每项包含 text 和 start 时间
+            video_info: 视频信息，包含标题等
             max_tokens: 最大返回token数
 
         Returns:
-            Dict: 分析结果，包含相关片段、时间点和相关度
+            Dict: 分析结果，包含答案和相关片段
         """
         # 构建字幕文本，保留时间信息
         subtitle_entries = []
@@ -56,39 +100,36 @@ class OpenAIClient:
 
         system_prompt = """
         你是一个视频内容分析助手。你的任务是：
-        1. 分析用户的查询和视频字幕内容
-        2. 找出字幕中与查询最相关的片段
-        3. 提供时间点和相关度评分
+        1. 分析用户的问题和视频字幕内容
+        2. 找出与问题最相关的内容
+        3. 生成准确的答案和相关视频片段
         
         输出格式要求：
         {
-            "relevant": bool,      # 是否找到相关内容
-            "summary": str,        # 简短总结（限50字）
-            "details": str,        # 详细说明（如果relevant为true）
-            "timestamps": [        # 相关时间点列表（最多返回3个最相关的点）
-                {
-                    "time": str,   # 时间点 (MM:SS)
-                    "text": str,   # 相关内容
-                    "relevance": float  # 相关度 0.0-1.0
-                }
-            ]
+            "clip": {
+                "content": "相关内容",
+                "timestamp": "MM:SS格式的时间点",
+                "relevance": 0.0到1.0的相关度
+            }
         }
         
-        请确保输出是有效的JSON格式。时间点按相关度从高到低排序。
+        请确保输出是有效的JSON格式。如果找不到相关内容，返回 null。
         """
 
         user_prompt = f"""
-        用户查询: {query}
+        用户问题: {query}
+        
+        视频标题: {video_info.get('title', '')}
         
         字幕内容:
         {subtitle_text}
         
-        请分析字幕内容，找出与用户查询最相关的部分，并标注具体时间点。
+        请分析字幕内容，找出与用户问题最相关的片段，并标注具体时间点。
         """
 
         try:
             response = await self.client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model="gpt-4o",
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
@@ -97,23 +138,7 @@ class OpenAIClient:
                 temperature=0.7
             )
 
-            content = response.choices[0].message.content
-            try:
-                # 尝试解析JSON
-                result = json.loads(content)
-                # 确保返回格式完整
-                if "timestamps" not in result:
-                    result["timestamps"] = []
-                return result
-            except json.JSONDecodeError as e:
-                logger.error(f"Failed to parse OpenAI response: {e}")
-                # 如果解析失败，返回一个标准格式
-                return {
-                    "relevant": True,
-                    "summary": content[:100],
-                    "details": None,
-                    "timestamps": []
-                }
+            return self._parse_json_response(response.choices[0].message.content)
 
         except Exception as e:
             logger.error(f"OpenAI API error: {str(e)}")
@@ -123,49 +148,67 @@ class OpenAIClient:
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=4, max=10)
     )
-    async def summarize_subtitles(
+    async def generate_answer(
         self,
-        subtitles: List[Dict],
-        max_tokens: int = 150
-    ) -> str:
-        """总结字幕内容
+        query: str,
+        clips: List[Dict],
+        max_tokens: int = 300
+    ) -> Dict:
+        """根据所有相关片段生成综合答案
 
         Args:
-            subtitles: 字幕列表
+            query: 用户问题
+            clips: 相关视频片段列表
             max_tokens: 最大返回token数
 
         Returns:
-            str: 总结内容
+            Dict: 包含答案和可信度的字典
         """
-        # 将字幕转换为文本
-        subtitle_text = ", ".join(item["text"] for item in subtitles)
+        if not clips:
+            return None
 
         system_prompt = """
-        你是一个视频内容总结助手。请将提供的字幕内容总结为简洁的几点要点。
-        重点关注：
-        1. 视频的主要话题
-        2. 关键信息点
-        3. 重要的结论或建议
+        你是一个视频内容分析助手。你的任务是：
+        1. 分析所有相关视频片段
+        2. 生成一个综合的、准确的答案
+        3. 评估答案的可信度
         
-        输出格式：
-        1. [主要话题]
-        2. [关键点1]
-        3. [关键点2]
-        ...
+        输出格式要求：
+        {
+            "summary": "综合答案",
+            "confidence": 0.0到1.0的可信度
+        }
+        """
+
+        clips_text = "\n".join([
+            f"视频: {clip['video_title']}\n"
+            f"时间点: {clip['timestamp']}\n"
+            f"内容: {clip['content']}\n"
+            f"相关度: {clip['relevance']}\n"
+            for clip in clips
+        ])
+
+        user_prompt = f"""
+        用户问题: {query}
+        
+        相关视频片段:
+        {clips_text}
+        
+        请根据以上视频片段生成一个综合的答案，并评估答案的可信度。
         """
 
         try:
             response = await self.client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model="gpt-4o",
                 messages=[
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": subtitle_text}
+                    {"role": "user", "content": user_prompt}
                 ],
                 max_tokens=max_tokens,
                 temperature=0.7
             )
 
-            return response.choices[0].message.content
+            return self._parse_json_response(response.choices[0].message.content)
 
         except Exception as e:
             logger.error(f"OpenAI API error: {str(e)}")
