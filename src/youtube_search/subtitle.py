@@ -86,5 +86,5 @@ class SubtitleFetcher:
             )
 
         except Exception as e:
-            logger.error(f"Error getting transcript for video {video_id}: {e}")
+            logger.error(f"Error getting transcript for video {video_id}")
             return None

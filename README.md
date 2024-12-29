@@ -1,109 +1,74 @@
-# YouTube Video Search
+# YouTube Video Search API
 
-一个用于搜索 YouTube 视频并获取字幕的工具。
+这是一个基于 FastAPI 的 Web 服务，用于搜索 YouTube 视频并分析内容。
 
 ## 功能特点
 
-- YouTube 视频搜索
-- 自动获取视频字幕（支持多语言）
-- 字幕优先级：人工字幕 > 自动生成字幕 > 翻译字幕
-- 支持代理配置
-
-## 项目结构
-
-```
-.
-├── docs/                  # 文档目录
-│   ├── project_overview.md    # 项目概述
-│   ├── search_module.md      # 搜索模块设计
-│   └── subtitle_module.md    # 字幕模块设计
-├── src/                   # 源代码目录
-│   └── youtube_search/       # 主要代码包
-│       ├── __init__.py
-│       ├── client.py         # YouTube API 客户端
-│       ├── models.py         # 数据模型
-│       ├── service.py        # 服务层
-│       ├── subtitle.py       # 字幕处理
-│       └── utils.py          # 工具函数
-├── tests/                 # 测试代码目录
-│   ├── test_search.py        # 搜索功能测试
-│   ├── test_service.py       # 服务功能测试
-│   └── test_subtitle.py      # 字幕功能测试
-├── .env                   # 环境变量配置
-├── .gitignore            # Git 忽略文件
-├── README.md             # 项目说明
-└── requirements.txt      # 项目依赖
-```
+- 搜索 YouTube 视频
+- 获取视频字幕
+- 使用 GPT-4o 分析视频内容
+- 基于会话的问答系统
 
 ## 安装
 
-1. 克隆项目：
-```bash
-git clone [repository_url]
-cd youtube-video-search
-```
+1. 确保已安装 [Rye](https://rye-up.com/guide/installation/)
 
-2. 安装依赖：
+2. 克隆项目并安装依赖：
 ```bash
-pip install -r requirements.txt
+git clone <repository-url>
+cd video-search
+rye sync
 ```
 
 3. 配置环境变量：
-创建 `.env` 文件并添加以下内容：
+创建 `.env` 文件并填入以下内容：
 ```
-YOUTUBE_API_KEY=your_api_key_here
+YOUTUBE_API_KEY=your_youtube_api_key
+OPENAI_API_KEY=your_openai_api_key
 ```
+
+## 运行服务
+
+```bash
+rye run python src/run.py
+```
+
+服务将在 http://localhost:8000 启动。
+
+## API 文档
+
+访问以下地址查看 API 文档：
+- Swagger UI: http://localhost:8000/docs
+- ReDoc: http://localhost:8000/redoc
 
 ## 使用示例
 
-```python
-import asyncio
-from youtube_search.service import YouTubeService
-
-async def main():
-    # 创建服务实例
-    service = YouTubeService()
-    
-    # 搜索视频并获取字幕
-    results = await service.search_videos_with_subtitles('搜索关键词')
-    
-    # 处理结果
-    for result in results:
-        print(result.format_info())
-        if result.subtitle:
-            print(result.get_subtitle_text())
-
-if __name__ == '__main__':
-    asyncio.run(main())
-```
-
-## 测试
-
-运行测试：
+1. 创建搜索会话：
 ```bash
-# 运行所有测试
-python -m pytest tests/
-
-# 运行特定测试
-python -m tests.test_service
-python -m tests.test_subtitle
+curl -X POST http://localhost:8000/search \
+  -H "Content-Type: application/json" \
+  -d '{"keyword": "熊猫速汇教程", "max_results": 3}'
 ```
 
-## 依赖项
+2. 在会话中提问：
+```bash
+curl -X POST http://localhost:8000/ask \
+  -H "Content-Type: application/json" \
+  -d '{"session_id": "your_session_id", "question": "熊猫速汇的手续费是多少？"}'
+```
 
-- google-api-python-client==2.108.0
-- python-dotenv==1.0.0
-- pydantic==2.5.2
-- aiohttp==3.9.1
-- tenacity==8.2.3
-- youtube-transcript-api==0.6.2
+## 开发
 
-## 注意事项
+1. 运行测试：
+```bash
+rye run pytest
+```
 
-1. 需要有效的 YouTube Data API 密钥
-2. 字幕获取依赖于视频是否启用了字幕功能
-3. 建议使用代理以提高访问稳定性
+2. 格式化代码：
+```bash
+rye run black src tests
+```
 
-## License
+## 许可证
 
-MIT License
+MIT
