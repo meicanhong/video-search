@@ -1,147 +1,144 @@
-# YouTube 智能搜索 API
+# YouTube 视频搜索与分析服务
 
-基于 FastAPI 的 YouTube 视频智能搜索服务，支持视频内容分析和精确时间点定位。
+基于 FastAPI 的 YouTube 视频搜索和内容分析服务，支持视频搜索、字幕获取和内容分析等功能。
 
 ## 功能特点
 
-- 🔍 智能视频搜索：基于关键词搜索相关视频
-- 📝 字幕处理：支持多语言字幕，包括自动生成和手动字幕
-- 🤖 GPT 分析：使用 GPT-4o 模型分析视频内容
-- ⏱️ 时间点定位：精确定位到相关内容的时间点
-- 🔄 会话管理：支持基于会话的持续对话
-- 🌐 RESTful API：标准的 HTTP 接口
+- 视频搜索：根据关键词搜索 YouTube 视频
+- 字幕获取：支持获取视频的自动生成字幕和手动上传字幕
+- 内容分析：使用 GPT 模型分析视频内容，生成摘要和关键点
+- 会话管理：支持创建搜索会话，存储搜索结果和字幕内容
+- 直达链接：提供带时间戳的 YouTube 视频直达链接
 
 ## 环境要求
 
 - Python >= 3.8
-- [Rye](https://rye-up.com/guide/installation/) 包管理器
-- [Just](https://github.com/casey/just) 命令运行器
+- [Rye](https://rye-up.com/guide/installation/) 包管理工具
 
 ## 快速开始
 
-1. 克隆项目：
+1. 克隆项目
 ```bash
-git clone <repository-url>
+git clone https://github.com/yourusername/video-search.git
 cd video-search
 ```
 
-2. 安装依赖：
+2. 配置环境变量
+```bash
+# 创建 .env 文件并添加以下内容
+YOUTUBE_API_KEY=your_youtube_api_key
+OPENAI_API_KEY=your_openai_api_key
+```
+
+3. 安装依赖
 ```bash
 just install
 ```
 
-3. 配置环境变量：
-创建 `.env` 文件：
-```bash
-# YouTube API 密钥
-YOUTUBE_API_KEY=your_youtube_api_key_here
-
-# OpenAI API 密钥
-OPENAI_API_KEY=your_openai_api_key_here
-```
-
-4. 启动服务：
+4. 启动服务
 ```bash
 just dev
 ```
 
-服务将在 http://localhost:8000 启动
+服务将在 http://localhost:8001 启动。
 
-## API 使用
+## API 接口
 
-### 1. 创建搜索会话
-
-```bash
-curl -X POST http://localhost:8000/search \
-  -H "Content-Type: application/json" \
-  -d '{
-    "keyword": "熊猫速汇教程",
-    "max_results": 3
-  }'
-```
-
-返回：
-```json
-{
-  "session_id": "xxx",
-  "search_keyword": "熊猫速汇教程",
-  "video_count": 3,
-  "created_at": "2024-01-20T10:00:00"
-}
-```
-
-### 2. 在会话中提问
+### 搜索视频
 
 ```bash
-curl -X POST http://localhost:8000/ask \
-  -H "Content-Type: application/json" \
-  -d '{
-    "session_id": "xxx",
-    "question": "熊猫速汇的手续费是多少？"
-  }'
+curl -X POST "http://localhost:8001/search" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "keyword": "搜索关键词",
+       "max_results": 3
+     }'
 ```
 
-返回：
+响应示例：
 ```json
 {
-  "answer": {
-    "summary": "熊猫速汇每笔收取80元人民币的手续费",
-    "confidence": 0.95
+  "session_id": "550e8400-e29b-41d4-a716-446655440000",
+  "search_keyword": "搜索关键词",
+  "summary": {
+    "total_videos": 3,
+    "total_duration": 45,
+    "latest_video_date": "2024-01-15T10:00:00Z",
+    "overview": "找到3个相关视频，总时长约45分钟..."
   },
-  "relevant_clips": [
+  "videos": [
     {
-      "video_title": "熊猫速汇使用教程",
-      "timestamp": "01:39",
-      "content": "熊猫速汇每笔收费是80人民币",
-      "relevance": 0.95,
-      "direct_link": "https://youtube.com/watch?v=xxx&t=99"
+      "video_id": "video_id_1",
+      "title": "视频标题",
+      "channel_title": "频道名称",
+      "duration": "15分钟",
+      "view_count": 12000,
+      "published_at": "2024-01-15T10:00:00Z",
+      "thumbnail_url": "https://i.ytimg.com/vi/video_id_1/hqdefault.jpg",
+      "description": "视频描述",
+      "has_subtitles": true,
+      "languages": ["zh-Hans", "en"]
     }
-  ]
+  ],
+  "created_at": "2024-01-20T10:00:00Z",
+  "expires_at": "2024-01-20T11:00:00Z"
 }
 ```
 
-## 开发命令
+### 健康检查
 
-- `just install` - 安装依赖
-- `just dev` - 启动开发服务器
-- `just test` - 运行测试
-- `just format` - 格式化代码
-- `just lint` - 运行代码检查
-- `just clean` - 清理临时文件
-
-## 项目结构
-
-```
-src/youtube_search/
-├── __init__.py
-├── client.py      # YouTube API 客户端
-├── models.py      # 数据模型
-├── service.py     # 业务逻辑
-├── session.py     # 会话管理
-├── subtitle.py    # 字幕处理
-├── openai_client.py # GPT 分析
-├── utils.py       # 工具函数
-└── web.py         # Web API
-
-tests/             # 测试用例
-docs/              # 文档
-```
-
-## 测试
-
-运行所有测试：
 ```bash
-just test
+curl "http://localhost:8001/health"
 ```
 
-## 贡献
+## 项目管理
+
+- 安装依赖：`just install`
+- 启动服务：`just dev`
+- 同步依赖：`just sync`
+- 更新项目：`just update`
+- 格式化代码：`just format`
+
+## 开发工具
+
+- FastAPI: Web 框架
+- Rye: Python 包管理
+- pre-commit: Git 提交前的代码检查
+- black/isort/ruff: 代码格式化和检查
+
+## 目录结构
+
+```
+video-search/
+├── src/
+│   └── youtube_search/
+│       ├── client.py      # YouTube API 客户端
+│       ├── models.py      # 数据模型
+│       ├── service.py     # 业务逻辑
+│       ├── web.py         # Web API
+│       ├── subtitle.py    # 字幕处理
+│       ├── session.py     # 会话管理
+│       └── openai_client.py # OpenAI API 客户端
+├── docs/                  # 文档
+├── .env                   # 环境变量
+├── .justfile             # 项目管理命令
+└── pyproject.toml        # 项目配置
+```
+
+## 注意事项
+
+1. 确保 YouTube API 密钥和 OpenAI API 密钥配置正确
+2. 会话有效期为 1 小时
+3. 视频搜索结果最多返回 10 个
+4. 字幕获取可能受 YouTube 限制影响
+
+## 贡献指南
 
 1. Fork 项目
-2. 创建特性分支：`git checkout -b feature/amazing-feature`
-3. 提交更改：`git commit -m 'Add amazing feature'`
-4. 推送分支：`git push origin feature/amazing-feature`
-5. 提交 Pull Request
+2. 创建功能分支
+3. 提交更改
+4. 发起 Pull Request
 
 ## 许可证
 
-MIT
+MIT License
