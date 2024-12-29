@@ -25,7 +25,6 @@ class VideoInfo(BaseModel):
 class SearchSummary(BaseModel):
     """搜索结果总结"""
     total_videos: int
-    topics: List[str]
     overview: str
 
 

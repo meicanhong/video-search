@@ -8,19 +8,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from .models import SearchRequest, SearchResponse
 from .service import YouTubeService
 
-# 配置 structlog
-structlog.configure(
-    processors=[
-        structlog.processors.TimeStamper(fmt="iso"),
-        structlog.processors.StackInfoRenderer(),
-        structlog.processors.format_exc_info,
-        structlog.processors.JSONRenderer()
-    ],
-    context_class=dict,
-    logger_factory=structlog.PrintLoggerFactory(),
-    cache_logger_on_first_use=True
-)
-
 logger = structlog.get_logger()
 
 # 初始化 FastAPI 应用

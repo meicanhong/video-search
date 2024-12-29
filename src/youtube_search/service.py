@@ -30,7 +30,6 @@ class YouTubeService:
 
             # 获取视频详细信息
             video_infos: List[VideoInfo] = []
-            topics = set()
 
             for video in videos:
                 log = logger.bind(video_id=video.video_id)
@@ -40,10 +39,6 @@ class YouTubeService:
                 transcript = self.subtitle_fetcher.get_transcript(
                     video.video_id)
                 has_subtitles = transcript is not None
-
-                # 提取视频主题
-                if video.title:
-                    topics.add(video.title.split()[0])  # 简单地使用第一个词作为主题
 
                 video_info = VideoInfo(
                     video_id=video.video_id,
@@ -62,8 +57,7 @@ class YouTubeService:
             # 创建总结
             summary = SearchSummary(
                 total_videos=len(video_infos),
-                topics=list(topics),
-                overview=f"找到{len(video_infos)}个相关视频，主要涉及{'、'.join(topics)}等主题。"
+                overview=f"找到{len(video_infos)}个相关视频。"
             )
 
             # 创建响应
@@ -79,8 +73,7 @@ class YouTubeService:
 
             logger.info("search_response_created",
                         keyword=keyword,
-                        total_videos=len(video_infos),
-                        topics=list(topics))
+                        total_videos=len(video_infos))
             return response
 
         except Exception as e:
