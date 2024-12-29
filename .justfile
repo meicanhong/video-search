@@ -43,6 +43,10 @@ format:
     rye run ruff check --fix --exit-zero .
     rye run ruff format .
 
+
+run:
+    docker-compose --env-file .env up -d --build
+
 install-hooks:
     #!/usr/bin/env sh
     # Create pre-commit config file

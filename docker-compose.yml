@@ -32,7 +32,7 @@ services:
       - ./frontend/public:/app/public
       - /app/node_modules
     environment:
-      - VITE_BACKEND_URL=http://backend:8000
+      - VITE_BACKEND_URL=http://localhost:8000
       - NODE_ENV=development
       - CHOKIDAR_USEPOLLING=true
     depends_on:
