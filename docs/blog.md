@@ -44,6 +44,43 @@
    - 视频信息也存一下（反正不会变）
    - API 结果缓存一会（省点钱）
 
+## 想自己玩玩？超简单！🚀
+
+### 1. 准备工作
+- 克隆项目：`git clone https://github.com/danny-avila/video-search.git`
+- Docker（装好就行，其他啥都不用装！）
+- 一个 OpenAI API key（GPT-4 最好）
+- 一个 YouTube API key（Google Cloud 上搞一个）
+
+### 2. 配置环境变量
+```bash
+# 复制环境变量文件
+cp .env.example .env
+
+# 编辑 .env 文件，主要填这两个：
+OPENAI_API_KEY=你的_OpenAI_API_Key
+YOUTUBE_API_KEY=你的_YouTube_API_Key
+```
+
+### 3. 启动项目
+```bash
+# 一行命令搞定
+docker-compose --env-file .env up
+```
+
+搞定！等镜像构建完成后，打开浏览器访问 `http://localhost:3000` 就能开始玩了！
+
+要是想看看运行日志，可以用：
+```bash
+docker compose logs -f
+```
+
+想停止的时候：
+```bash
+docker compose down
+```
+
+就是这么简单！不用管 Python、Node.js 版本，也不用装一堆依赖，Docker 帮我们搞定一切！
 
 ## 写在最后 ✨
 
